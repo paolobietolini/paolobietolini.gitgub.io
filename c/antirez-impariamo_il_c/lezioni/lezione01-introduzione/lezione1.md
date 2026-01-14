@@ -1,4 +1,6 @@
 ---
+layout: page
+title: Lezione 1 - Introduzione
 permalink: /lezione1
 ---
 
