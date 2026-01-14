@@ -28,7 +28,7 @@ This repository contains my notes, exercises, and code while learning C programm
 Course by Salvatore Sanfilippo (antirez).
 
 ### Fondamenti
-- [Lezione 1: Introduzione](antirez-impariamo_il_c/lezioni/lezione01-introduzione/)
+- [Lezione 1: Introduzione](lezioni/introduzione)
 - [Lezione 2: Variabili e operatori](antirez-impariamo_il_c/lezioni/lezione02-variabili-operatori/)
   - [Appendice: La vita delle variabili locali](antirez-impariamo_il_c/lezioni/lezione02.5-appendice-variabili-locali/)
 - [Lezione 3](antirez-impariamo_il_c/lezioni/lezione03/)
