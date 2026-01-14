@@ -1,11 +1,8 @@
 To learn
-Window functions
-
-CTEs
-
-Query optimization basics
-
-Writing transformations, not just selects
+- Window functions
+- CTEs
+- Query optimization basics
+- Writing transformations, not just selects
 
 
 ## IN Operator
