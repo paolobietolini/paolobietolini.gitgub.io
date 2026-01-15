@@ -39,3 +39,72 @@ docker rm `docker ps -aq`
 
 
 ### Volumes
+Let's say we have three files on our machine:
+```bash
+mkdir example
+cd example
+touch file{1..3}.txt
+echo "Hello, World" > file1.txt
+```
+and we want to list the files and their content using a previously created script`list_files.py`
+```python
+from pathlib import Path
+
+current_dir = Path.cwd()
+current_file = Path(__file__).name
+
+print(f"Files in {current_dir}")
+for filepath in current_dir.iterdir():
+    if filepath.name == current_file:
+        continue
+
+    print(f" - {filepath.name}")
+
+    if filepath.is_file():
+        content = filepath.read_text(encoding="utf-8")
+        print(f"   Content:\n{content}")
+```
+
+I can map the content of this folder to a Python container
+```bash
+docker run -it \
+  --rm \
+  -v "$(pwd)/example:/app/example" \
+# -w /app/example \ Will take the user directly into the container's directory
+  --entrypoint=bash \
+  python:latest
+```
+
+`-v ${pwd}/example:/app/example`
+On the right we have the path of the host machine and on the left the location inside the container
+
+
+## Data Pipelines
+A data pipeline is an automated system that collects raw data from various sources, transforms it (cleans, filters, aggregates) for consistency and usability, and then moves it to a destination like a data warehouse or lake for analysis, reporting, or machine learning
+
+For this Workshop we will use the [NYC Taxis data](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page)
+
+The file `pipeline.py` will be our pipleine to ingest data and output it.
+
+### Virtual Environment
+If there are missing depndencies we could use Virtual Environments to avoid installing the missing dependencies on our host machine
+A virtual environment, it is an isolated Python environment that keeps dependencies for the project separate from other projects and the host system
+
+`uv` will manage the packages for us
+`pip install uv`
+
+To initialize a Python project:
+`uv init --python=3.13`
+
+To compare the Python versions, i.e the one in the virtual environment, and the one on the host 
+```bash
+uv run which python  # Python in the virtual environment
+uv run python -V
+
+which python        # Python on the host
+python -V
+```
+After creating a project a `.toml` file will be created containing the project details
+
+`uv add pandas` will add the dependency to the project
+`uv run python pipeline.py 12` will run our project

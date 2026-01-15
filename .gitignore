@@ -1,3 +1,7 @@
 /javascript/
 /python/
 /.vscode/
+*.parquet
+__pycache__/
+*py[codz]
+*$py.class
