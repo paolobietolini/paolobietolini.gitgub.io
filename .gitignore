@@ -1,10 +1,18 @@
 /javascript/
 /python/
 /.vscode/
+
+# Data files
+*.csv
 *.parquet
+
+# Python
 __pycache__/
 *py[codz]
 *$py.class
 
+# Jupyter
 data-engineering/zoomcamp/docker-postgres-terraform/pipeline_ws/.ipynb_checkpoints
+
+# Local volumes / generated data
 data-engineering/zoomcamp/docker-postgres-terraform/pipeline_ws/ny_taxi_postgres_data
