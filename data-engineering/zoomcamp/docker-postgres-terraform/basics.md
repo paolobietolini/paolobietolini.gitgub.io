@@ -301,7 +301,9 @@ We encountered an error:
 /tmp/ipykernel_25483/2933316018.py:1: DtypeWarning: Columns (6) have mixed types. Specify dtype option on import or set low_memory=False.
 ```
 
-An important difference between .csv and .parquet files is the absence of schemas in the former. Having a aschema make it easier for Pandas to infer the data types.
+An important difference between .csv and .parquet files is the absence of schemas in the former. 
+
+Having a aschema make it easier for Pandas to infer the data types.
 
 To help Pandas knowing the correct types we need to set the following schema:
 ```python
@@ -330,10 +332,262 @@ parse_dates = [
 ]
 
 df = pd.read_csv(
-    prefix + 'yellow_tripdata_2021-01.csv.gz',
+    'yellow_tripdata_2021-01.csv.gz',
     nrows=100,
     dtype=dtype,
     parse_dates=parse_dates
 )
 ```
+
+
+**SQLAlchemy**
+To add this data to our PostgreSQL database we need a library called SQLAlchemy via Pandas.
+To add the library into the Jupiter Notebook we run 
+`!uv add sqlalchemy psycopg2-binary`.
+`psycopg2` is used to connect to Postgres.
+Then we create the engine to  connect to the database:
+
+```python
+from sqlalchemy import create_engine
+engine = create_engine('postgresql://root:root@localhost:9868/ny_taxi')
+```
+
+`df.to_sql()` will insert the data into our database
+
+Before that we are going to print the schema that it is going to be created into the database:
+```python
+DB_TABLE_NAME = 'yellow_taxi_data'
+print(pd.io.sql.get_schema(df, name=DB_TABLE_NAME, con=engine))
+```
+This will print the follwing SQL command
+```sql
+CREATE TABLE yellow_taxi_data (
+	"VendorID" BIGINT, 
+	tpep_pickup_datetime TIMESTAMP WITHOUT TIME ZONE, 
+	tpep_dropoff_datetime TIMESTAMP WITHOUT TIME ZONE, 
+	passenger_count BIGINT, 
+	trip_distance FLOAT(53), 
+	"RatecodeID" BIGINT, 
+	store_and_fwd_flag TEXT, 
+	"PULocationID" BIGINT, 
+	"DOLocationID" BIGINT, 
+	payment_type BIGINT, 
+	fare_amount FLOAT(53), 
+	extra FLOAT(53), 
+	mta_tax FLOAT(53), 
+	tip_amount FLOAT(53), 
+	tolls_amount FLOAT(53), 
+	improvement_surcharge FLOAT(53), 
+	total_amount FLOAT(53), 
+	congestion_surcharge FLOAT(53)
+)
+```
+
+Now we can run:
+```python
+df.head(n=0).to_sql(name=DB_TABLE_NAME, con=engine, if_exists='replace')
+```
+This will create the table if it won't exist already by runinng the `CREATE TABLE` command.
+`head(n=0)` makes sure we only create the table, we don't add any data yet.
+
+
+By running `pgcli` we will see that in the Postgres database we will have correctly created the table:
+
+```bash
+root@localhost:ny_taxi> \dt
++--------+------------------+-------+-------+
+| Schema | Name             | Type  | Owner |
+|--------+------------------+-------+-------|
+| public | yellow_taxi_data | table | root  |
++--------+------------------+-------+-------+
+```
+
+
+**Ingesting Data in Chunks**
+
+We can now start inserting data into our table.
+We cannot ingest the data all at once as it will take long time and we will not know the status.
+So we split it in chunks of equal size.
+For this task we can use an iterator.
+
+Our chunk will be 100000 elements big
+
+```python
+df_iter = pd.read_csv(
+    filename,
+    dtype=dtype,
+    parse_dates=parse_dates,
+    iterator=True,
+    chunksize=100000
+)
+```
+
+We can use a for-loop (or the `next()` method) to iterate over the list.
+```python
+first = True
+if first:
+  for df_chunk in df_iter:
+    df_chunk.head(0).to_sql(
+      name=DB_TABLE_NAME,
+      con=engine,
+      if_exists='replace'
+    )
+    first = False
+    print(f'Table {DB_TABLE_NAME} created')
+  df_chunck.to_sql(
+    name=DB_TABLE_NAME,
+    con=engine,
+    if_exists='append'
+  )
+  print("Inserted:", len(df_chunk))
+```
+
+Alternative approach using `next()`
+```python
+first_chunk = next(df_iter)
+
+first_chunk.head(0).to_sql(
+    name="yellow_taxi_data",
+    con=engine,
+    if_exists="replace"
+)
+
+print("Table created")
+
+first_chunk.to_sql(
+    name="yellow_taxi_data",
+    con=engine,
+    if_exists="append"
+)
+
+print("Inserted first chunk:", len(first_chunk))
+
+for df_chunk in df_iter:
+    df_chunk.to_sql(
+        name="yellow_taxi_data",
+        con=engine,
+        if_exists="append"
+    )
+    print("Inserted chunk:", len(df_chunk))
+```
+
+To add a progress bar we can run:
+`!uv add tqdm`
+adn wrap it around the iterable:
+```python
+# Iterate over the DataFrame to insert the chunks into the database
+first = True
+
+for df_chunk in tqdm(df_iter):
+    if first:
+        df_chunk.head(0).to_sql(
+            name=DB_TABLE_NAME,
+            con=engine,
+            if_exists="replace",
+            index=False
+        )
+        first = False
+        print("Table created")
+
+    df_chunk.to_sql(
+        name=DB_TABLE_NAME,
+        con=engine,
+        if_exists="append",
+        index=False,
+        chunksize=10_000,
+        method="multi"
+    )
+
+    print("Inserted:", len(df_chunk))
+```
+
+
+**Creating the data ingestion script**
+
+Now let's convert the notebook to a Python script:
+```bash
+uv run jupyter nbconvert --to=script notebook.ipynb
+mv notebook.py ingest_data.py
+```
+
+In questo modo avremo uno script Python pronto per essere dockerizzato:
+
+```python
+import pandas as pd
+from sqlalchemy import create_engine
+from tqdm.auto import tqdm
+
+# user="root",
+# password="root",
+# host="localhost",
+# port="9868",
+# db="ny_taxi",
+# table="yellow_taxi_data",
+# year=2021,
+# month=1
+chunk_size = 10_000
+
+
+def ingest_data(user, password, host, port, db, table, year, month):
+    file_name = f"yellow_tripdata_{year}-{month:02d}.csv.gz"
+    engine = create_engine(f"postgresql://{user}:{password}@{host}:{port}/{db}")
+    dtype = {
+        "VendorID": "Int64",
+        "passenger_count": "Int64",
+        "trip_distance": "float64",
+        "RatecodeID": "Int64",
+        "store_and_fwd_flag": "string",
+        "PULocationID": "Int64",
+        "DOLocationID": "Int64",
+        "payment_type": "Int64",
+        "fare_amount": "float64",
+        "extra": "float64",
+        "mta_tax": "float64",
+        "tip_amount": "float64",
+        "tolls_amount": "float64",
+        "improvement_surcharge": "float64",
+        "total_amount": "float64",
+        "congestion_surcharge": "float64",
+    }
+    parse_dates = ["tpep_pickup_datetime", "tpep_dropoff_datetime"]
+    df_iter = pd.read_csv(
+        file_name,
+        dtype=dtype,
+        parse_dates=parse_dates,
+        iterator=True,
+        chunksize=chunk_size,
+    )
+    first = True
+    for df_chunk in tqdm(df_iter):
+        if first:
+            df_chunk.head(0).to_sql(
+                name=table, con=engine, if_exists="replace", index=False
+            )
+            first = False
+            print("Table created")
+        df_chunk.to_sql(
+            name=table,
+            con=engine,
+            if_exists="append",
+            index=False,
+            chunksize=chunk_size,
+            method="multi",
+        )
+        print("Inserted:", len(df_chunk))
+
+
+if __name__ == "__main__":
+    ingest_data(
+        user="root",
+        password="root",
+        host="localhost",
+        port="9868",
+        db="ny_taxi",
+        table="yellow_taxi_data",
+        year=2021,
+        month=1,
+    )
+```
+
+Prima pero' dobbiamo fare in modo che i parametri della funzione siano configurabili da CLI
 # Terraform with Docker
