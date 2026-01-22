@@ -7,8 +7,16 @@
 #include <stdio.h>
 #define TAB 8
 
-int main(void) {
+void flush_spaces(int *spaces) {
+  for (int i = 0; i < *spaces; i++) {
+    putchar(' ');
+  }
+  *spaces = 0;
+}
 
+int dist_to_tab(int current_col) { return TAB - (current_col % TAB); }
+
+int main(void) {
   int col = 0, spaces = 0, c;
 
   while ((c = getchar()) != EOF) {
@@ -20,18 +28,18 @@ int main(void) {
         spaces = 0;
       }
     } else {
-      while (spaces > 0) {
-        putchar(' ');
-        spaces--;
-      }
+      flush_spaces(&spaces);
       putchar(c);
       if (c == '\n')
         col = 0;
       else if (c == '\t')
-        col += (TAB - col % TAB);
+        col += dist_to_tab(col);
       else
         col++;
     }
   }
+
+  flush_spaces(&spaces);
+
   return 0;
 }
