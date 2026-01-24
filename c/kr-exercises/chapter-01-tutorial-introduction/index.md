@@ -1,4 +1,3 @@
-
 ---
 layout: default
 title: "Chapter 1: A Tutorial Introduction"
