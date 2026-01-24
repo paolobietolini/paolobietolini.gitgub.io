@@ -6,3 +6,10 @@ plugins:
 
 markdown: kramdown
 highlighter: rouge
+
+# Process all markdown files as pages
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
