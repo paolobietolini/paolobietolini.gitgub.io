@@ -33,6 +33,9 @@ Exercises from "The C Programming Language" (2nd Edition) by Brian W. Kernighan 
 | 1-20 | Detab: replace tabs with spaces | [1-20.c](1-20.c) |
 | 1-21 | Entab: replace spaces with tabs | [1-21.c](1-21.c) |
 | 1-22 | Fold long lines at word boundaries | [1-22.c](1-22.c) |
+| 1-23 | Remove C comments from an input | [1-23.c](1-23.c) |
+| 1-23 | Cleaned version of 1-23.c | [1-23_clean.c](1-23_clean.c) |
+
 
 ## Additional Practice
 
