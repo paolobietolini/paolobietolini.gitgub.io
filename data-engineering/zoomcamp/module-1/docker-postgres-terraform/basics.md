@@ -612,5 +612,145 @@ Prima pero' dobbiamo fare in modo che i parametri della funzione siano configura
 ```
 
 Now we're ready to dockerize our function, just by changing our Dockerfile
+
+```Dockerfile
+# Start with slim Python 3.13 image
+FROM python:3.13.10-slim
+
+# Copy uv binary from official uv image (multi-stage build pattern)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/
+
+# Set working directory
+WORKDIR /code
+
+# Add virtual environment to PATH so we can use installed packages
+ENV PATH="/code/.venv/bin:$PATH"
+
+# Copy dependency files first (better layer caching)
+COPY "pyproject.toml" "uv.lock" ".python-version" ./
+# Install dependencies from lock file (ensures reproducible builds)
+RUN uv sync --locked
+
+# Copy application code
+COPY ingest_data.py .
+
+# Set entry point
+ENTRYPOINT ["python", "ingest_data.py"]
+```
+
+Then we build the Docker image
+
+```bash
+cd pipeline
+docker build -t taxi_ingest:v001 .
+```
+and run it 
+
+```bash
+docker run -it \
+  --network=pg-network \
+  taxi_ingest:v001 \
+    --user=root \
+    --pass=root \
+    --host=pgdatabase \ # This is the name of the Postgres container
+    --port=9868 \
+    --db=ny_taxi \
+    --target-table=yellow_taxi_data \
+    --month=12
+```
+
+- We need to provide the network for Docker to find the Postgres container. It goes before the name of the image.
+- Since Postgres is running on a separate container, the host argument will have to point to the container name of Postgres (`pgdatabase`).
+- You can drop the table in pgAdmin beforehand if you want, but the script will automatically replace the pre-existing table.
+
+To create a network we use `docker network pg-network`.
+Then we will have to update the Postgres container's network to match the one for the ingestion script
+```bash
+    docker run -it --rm \
+    --network=pg-network \ 
+    --name=pgdatabase
+      -e POSTGRES_USER="root" \
+      -e POSTGRES_PASSWORD="root" \
+      -e POSTGRES_DB="ny_taxi" \
+      -v ny_taxi_postgres_data:/var/lib/postgresql \
+      -p 9868:5432 \
+      postgres:18
+```
+
+
+To move away from `pgcli` we can use `pgadmin`, a UI used to manage Postgres.
+To enable it, run:
+```bash
+docker run -it \ 
+    -e PGADMIN_DEFAULT_EMAIL="admin@admin.com"
+    -e PGADMIN_DEFAULT_PASSWORD="root" \
+    -v pgadmin_data:/var/lib/pgadmin \
+    -p 8085:80
+    --networdk=pg-network \
+    --name pgadmin \
+    dbpage/pgadmin4
+```
+
+To run the containers at the same time we can use a Docker compose file, `docker-compose.yml`
+
+```yaml
+services:
+  pgdatabase:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: "root"
+      POSTGRES_PASSWORD: "root"
+      POSTGRES_DB: "ny_taxi"
+    volumes:
+      - "ny_taxi_postgres_data:/var/lib/postgresql"
+    ports:
+      - "9698:5432"
+ 
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@admin.com"
+      PGADMIN_DEFAULT_PASSWORD: "root"
+    volumes:
+      - "pgadmin_data:/var/lib/pgadmin"
+    ports:
+      - "8085:80"
+
+
+
+volumes:
+  ny_taxi_postgres_data:
+  pgadmin_data:
+```
+
+- We don't have to specify a network because docker compose takes care of it: every single container (or "service", as the file states) will run within the same network and will be able to find each other according to their names (`pgdatabase` and `pgadmin` in this example).
+- All other details from the docker run commands (environment variables, volumes and ports) are mentioned accordingly in the file following YAML syntax.
+
+To run the containers using the compose file we use 
+```bash
+docker compose up
+```
+
+To run the ingestion script using Docker Compose we will have to find the name of the virtual network used by the ingestion container.
+We can use 
+```bash
+# check the network link:
+docker network ls
+
+# it's pipeline_default (or similar based on directory name)
+# now run the script:
+docker run -it --rm\
+  --network=pipeline_default \
+  taxi_ingest:v001 \
+    --pg-user=root \
+    --pg-pass=root \
+    --pg-host=pgdatabase \
+    --pg-port=5432 \
+    --pg-db=ny_taxi \
+    --target-table=yellow_taxi_trips
+```
+
+
 # Terraform with Docker
 (WIP)
