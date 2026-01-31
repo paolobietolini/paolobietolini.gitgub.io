@@ -39,7 +39,7 @@ crash.*.log
 # to change depending on the environment.
 *.tfvars
 *.tfvars.json
-
+.env*
 # Ignore override files as they are usually used to override resources locally and so
 # are not checked in
 override.tf
@@ -67,3 +67,5 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 planout
+data-engineering/zoomcamp/module-2/kestra/.python-version
+data-engineering/zoomcamp/module-2/kestra/requirements.txt
