@@ -69,3 +69,5 @@ terraform.rc
 planout
 data-engineering/zoomcamp/module-2/kestra/.python-version
 data-engineering/zoomcamp/module-2/kestra/requirements.txt
+data-engineering/zoomcamp/module-2/kestra/pyproject.toml
+data-engineering/zoomcamp/module-2/kestra/uv.lock
